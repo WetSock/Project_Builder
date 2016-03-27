@@ -1,4 +1,1 @@
-# hello-world
-
-MWHAHHAHAHAHHAHAHA!
-I'll destroy this boring and bored world!
+Проект по созданию приложения под Андроид, обладающего функционалом MS Project.
