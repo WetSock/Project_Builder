@@ -1,60 +1,71 @@
-IF OBJECT_ID ('Задачи', 'U') IS NOT NULL
-    DROP TABLE Задачи;
+IF OBJECT_ID ('Subtasks', 'U') is not null
+    DROP TABLE Subtasks;
 GO
-IF OBJECT_ID ('Проект_Пользователь', 'U') IS NOT NULL
-    DROP TABLE Проект_Пользователь;
+IF OBJECT_ID ('Tasks', 'U') IS NOT NULL
+    DROP TABLE Tasks;
 GO
-IF OBJECT_ID ('Проекты', 'U') IS NOT NULL
-    DROP TABLE Проекты;
+IF OBJECT_ID ('Project_User', 'U') IS NOT NULL
+    DROP TABLE Project_User;
 GO
-IF OBJECT_ID ('Пользователи', 'U') IS NOT NULL
-    DROP TABLE Пользователи;
+IF OBJECT_ID ('Projects', 'U') IS NOT NULL
+    DROP TABLE Projects;
 GO
-
-CREATE TABLE Проекты 
-([ID Проекта] int IDENTITY PRIMARY KEY,
- Название nchar(20) not null, 
- [Дата создания] date null
+IF OBJECT_ID ('Users', 'U') IS NOT NULL
+    DROP TABLE Users;
+GO
+ 
+CREATE TABLE Projects (
+ ProjectID int IDENTITY PRIMARY KEY,
+ Name nchar(20) not null, 
+ CreationDate date null
 );
 
-Create table Пользователи
-([id Пользователя] int IDENTITY Primary key,
- Логин nchar(20) not null UNIQUE,
- Пароль nchar(20) not null,
- Имя nchar(20) null,
- Фамилия nchar(20) null,
- Отчество nchar(20) null
+Create table Users(
+ UserID int IDENTITY Primary key,
+ UserLogin nchar(20) not null UNIQUE,
+ UserPassword nchar(20) not null,
+ Name nchar(20) null,
+ Surname nchar(20) null,
+ Patronymic nchar(20) null
 );
 
-Create table Проект_Пользователь
-(Проект int not null,
- Пользователь int not null,
- Администратор nchar(2) null,
- Модератор nchar(2) null,
- CONSTRAINT PK_Проект_Пользователь
-               PRIMARY KEY (Проект, Пользователь),
- CONSTRAINT FK_Проект_ПП Foreign KEY (Проект) references Проекты ([ID Проекта])
+Create table Project_User(
+ ProjectID int not null,
+ UserID int not null,
+ Administrator nchar(3) null,
+ Moderator nchar(3) null,
+ CONSTRAINT PK_Project_User
+               PRIMARY KEY (ProjectID, UserID),
+ CONSTRAINT FK_Project_PU Foreign KEY (ProjectID) references Projects (ProjectID)
             on delete Cascade,
- CONSTRAINT FK_Пользователь_ПП Foreign KEY (Пользователь) 
-                 references Пользователи ([ID Пользователя]) on delete Cascade
+ CONSTRAINT FK_Users_PU Foreign KEY (UserID) 
+                 references Users (UserID) on delete Cascade
 );
 
-Create table Задачи
+Create table Tasks
 (
-  [id Задачи] int IDENTITY not null,
-  Проект int not null,
-  Название nchar(20) not null default 'Задача',
-  Описание nvarchar(max) null,
+  TaskID int IDENTITY not null,
+  ProjectID int not null,
+  Name nchar(20) not null default 'Задача',
+  Decription nvarchar(max) null,
   [Предполагаемая дата начала] date not null,
   [Фактическая дата начала] date null,
   [Предполагаемая дата окончания] date not null,
   [Фактическая дата окончания] date null,
-  Подчиняется int null,
-  constraint PK_Задачи Primary key ([id Задачи],Проект),
-  CONSTRAINT FK_Проект_Задачи Foreign KEY (Проект) references Проекты ([ID Проекта])
-            on delete Cascade,
-  constraint [Задача не может быть своей подзадачей] check (not Подчиняется=[id Задачи])
+  NextStage int null,
+  constraint PK_Tasks Primary key (TaskID),
+  CONSTRAINT FK_Projects_Tasks Foreign KEY (ProjectID) references Projects (ProjectID)
+            on delete Cascade
 );
+
+Create table Subtasks
+(
+   MainTask int,
+   SubTask int UNIQUE,
+   Constraint PK_Subtasks Primary Key (MainTask,SubTask),
+   Constraint FK_Tasks_Subtasks Foreign Key (MainTask) references Tasks (TaskID),
+   Constraint FK_Tasks_Subtasks1 Foreign Key (SubTask) references Tasks (TaskID)
+)
 
 GO
 
@@ -64,13 +75,13 @@ IF OBJECT_ID ('Проект без участников','TR') IS NOT NULL
 DROP TRIGGER [Проект без участников];
 go
 Create trigger [Проект без участников]
-on Проект_Пользователь
+on Project_User
 after Delete
-as delete from Проекты
-where Проекты.[id Проекта] in  
-(select Проект from deleted) and   
-Проекты.[id Проекта] not in 
-(select Проект from Проект_Пользователь)  
+as delete from Projects
+where Projects.ProjectID in  
+(select ProjectID from deleted) and   
+Projects.ProjectID not in 
+(select ProjectID from Project_User)  
 
 GO
 
@@ -84,10 +95,10 @@ Create PROCEDURE [Новый пользователь]
   @password nchar(20)
 )
 as
-    if (@login in (select Логин from Пользователи))
+    if (@login in (select UserLogin from Users))
         Print 'Пользователь с таким логином уже существует'
     else
-        INSERT into Пользователи
+        INSERT into Users
            values (@login,@password,NULL,NULL,NULL)
     
 go    
@@ -108,18 +119,18 @@ CREATE PROCEDURE [Новый проект]
 AS
 -- Создатель проекта должен быть записан в таблице Пользователи
     if (@users_id not in
-    (select [id Пользователя] 
-    from Пользователи))
+    (select UserID 
+    from Users))
        Print 'Неверное id создателя проекта'
     else
     
     begin
     -- Создание строки в таблице Проекты с заданным id, названием и текущей датой.
-       INSERT into Проекты 
+       INSERT into Projects
               values (@project_name,GETDATE());
     -- Указание создателя проекта в качестве его участника и администратора
-       INSERT into Проект_Пользователь
-              values (@@IDENTITY,@users_id,'Да',NULL)
+       INSERT into Project_User
+              values (@@IDENTITY,@users_id,'Yes',NULL)
     end
 GO
 
@@ -129,14 +140,14 @@ IF OBJECT_ID ( 'Новый участник проекта', 'P' ) IS NOT NULL
 GO
 CREATE procedure [Новый участник проекта]
 (
-   @id_Проекта int,
-   @id_Пользователя int,
-   @Администратор nchar(2),
-   @Модератор nchar(2)
+   @ProjectID int,
+   @UserID int,
+   @Admin nchar(2),
+   @Moderator nchar(2)
 )
 as 
-   INSERT into Проект_Пользователь
-          values (@id_Проекта,@id_Пользователя,@Администратор,@Модератор);
+   INSERT into Project_User
+          values (@ProjectID,@UserID,@Admin,@Moderator);
 go
 
 -- Добавление новой задачи в проект
@@ -145,13 +156,13 @@ IF OBJECT_ID ('Новая задача','P') is not NULL
 go
 Create PROCEDURE [Новая задача]
 (
-  @Проект int,
-  @Начало date,
-  @Конец date
+  @ProjectID int,
+  @Begin date,
+  @End date
 )
 as
-  INSERT into Задачи (Проект,[Предполагаемая дата начала],[Предполагаемая дата окончания])
-         values (@Проект,@Начало,@Конец) 
+  INSERT into Tasks (ProjectID,[Предполагаемая дата начала],[Предполагаемая дата окончания])
+         values (@ProjectID,@Begin,@End) 
 go    
 
 -- Процедура удаления проекта
@@ -160,11 +171,11 @@ if OBJECT_ID ('Удаление проекта','P') is not null
 go
 create PROCEDURE [Удаление проекта]
 (
-   @id_Проекта int
+   @ProjectID int
 )
 as
-   DELETE from Проекты 
-      where [ID Проекта]=@id_Проекта
+   DELETE from Projects
+      where ProjectID=@ProjectID
 go
 
 -- Процедура удаления пользователя
@@ -173,11 +184,11 @@ if OBJECT_ID ('Удаление пользователя','P') is not null
 go
 create PROCEDURE [Удаление пользователя]
 (
-   @id_Пользователя int
+   @UserID int
 )
 as
-   DELETE from Пользователи
-      where [ID пользователя]=@id_пользователя
+   DELETE from Users
+      where UserID=@UserID
 go
 
 -- Процедура удаления участника проекта
@@ -186,13 +197,13 @@ if OBJECT_ID ('Удаление участника проекта','P') is not n
 go
 create PROCEDURE [Удаление участника проекта]
 (
-   @id_Проекта int,
-   @id_Пользователя int
+   @ProjectID int,
+   @UserID int
 )
 as
-   DELETE from Проект_Пользователь
-      where Проект=@id_Проекта and
-            Пользователь=@id_Пользователя
+   DELETE from Project_User
+      where ProjectID=@ProjectID and
+            UserID=@UserID
 go
 
 -- Процедура удаления задачи
@@ -201,33 +212,33 @@ if OBJECT_ID ('Удаление задачи','P') is not null
 go
 create PROCEDURE [Удаление задачи]
 (
-   @id_задачи int
+   @TaskID int
 )
 as
-   DELETE from Задачи 
-      where [ID Задачи]=@id_Задачи
+   DELETE from Tasks 
+      where TaskID=@TaskID
 go
 
 
 -- Добавление нескольких строк для тестов
-INSERT INTO Проекты (Название) 
+INSERT INTO Projects(Name) 
     VALUES ('Этот самый');
-INSERT INTO Проекты (Название) 
+INSERT INTO Projects(Name) 
     VALUES ('Тест');
     
-INSERT INTO Пользователи (Логин,Пароль,Имя,Фамилия,Отчество) 
+INSERT INTO Users(UserLogin,UserPassword,Name,Surname,Patronymic) 
     VALUES ('WetSock','12345','Магомед','Алибеков','Русланович');
-INSERT INTO Пользователи (Логин,Пароль,Имя,Фамилия) 
+INSERT INTO Users(UserLogin,UserPassword,Name,Patronymic) 
     VALUES ('Cinereo','Null','Данил','Астахов');
-INSERT INTO Пользователи (Логин,Пароль,Имя,Фамилия) 
+INSERT INTO Users (UserLogin,UserPassword,Name,Surname) 
     VALUES ('Morbid','qwepoi123','Юджин','Краббс');
     
-INSERT INTO Проект_Пользователь (Проект,Пользователь,Администратор) 
+INSERT INTO Project_User(ProjectID,UserID,Administrator) 
     VALUES (1,1,'Да');
-INSERT INTO Проект_Пользователь (Проект,Пользователь,Модератор) 
+INSERT INTO Project_User (ProjectID,UserID,Moderator) 
     VALUES (1,2,'Да');
 
-INSERT into Задачи (Проект,[Предполагаемая дата начала],[Предполагаемая дата окончания])
+INSERT into Tasks (ProjectID,[Предполагаемая дата начала],[Предполагаемая дата окончания])
       values (1,'1996-10-25','1970-01-01')    
 go
 
