@@ -1,3 +1,6 @@
+IF OBJECT_ID ('Subtasks', 'U') is not null
+    DROP TABLE Subtasks;
+GO
 IF OBJECT_ID ('Tasks', 'U') IS NOT NULL
     DROP TABLE Tasks;
 GO
@@ -9,9 +12,6 @@ IF OBJECT_ID ('Projects', 'U') IS NOT NULL
 GO
 IF OBJECT_ID ('Users', 'U') IS NOT NULL
     DROP TABLE Users;
-GO
-IF OBJECT_ID ('Subtasks', 'U') is not null
-    DROP TABLE Subtasks;
 GO
  
 CREATE TABLE Projects (
@@ -62,8 +62,10 @@ Create table Subtasks
 (
    MainTask int,
    SubTask int UNIQUE,
+   ProjectID int,
    Constraint PK_Subtasks Primary Key (MainTask,SubTask),
-   Constraint FK_Tasks_Subtasks Foreign Key (MainTask) references Tasks (TaskID)
+   Constraint FK_Tasks_Subtasks Foreign Key (MainTask,ProjectID) references Tasks (TaskID,ProjectID),
+   Constraint FK_Tasks_Subtasks1 Foreign Key (SubTask,ProjectID) references Tasks (TaskID,ProjectID)
 )
 
 GO
@@ -73,15 +75,15 @@ GO
 IF OBJECT_ID ('Проект без участников','TR') IS NOT NULL
 DROP TRIGGER [Проект без участников];
 go
-Create trigger [Проект без участников]
-on Project_User
-after Delete
-as delete from Projects
-where Projects.ProjectID in  
-(select ProjectID from deleted) and   
-Projects.ProjectID not in 
-(select ProjectID from Project_User)  
-
+Create trigger [Проект без участников] 
+  on Project_User
+  after Delete
+as 
+  delete from Projects
+    where Projects.ProjectID in  
+      (select ProjectID from deleted) and   
+       Projects.ProjectID not in 
+          (select ProjectID from Project_User)  
 GO
 
 -- Процедура создания нового пользователя
@@ -123,14 +125,14 @@ AS
        Print 'Неверное id создателя проекта'
     else
     
-    begin
+    begin tran;
     -- Создание строки в таблице Проекты с заданным id, названием и текущей датой.
        INSERT into Projects
               values (@project_name,GETDATE());
     -- Указание создателя проекта в качестве его участника и администратора
        INSERT into Project_User
               values (@@IDENTITY,@users_id,'Yes',NULL)
-    end
+    commit tran;
 GO
 
 -- Добавление нового участника в проект
@@ -220,17 +222,13 @@ go
 
 
 -- Добавление нескольких строк для тестов
-INSERT INTO Projects(Name) 
-    VALUES ('Этот самый');
-INSERT INTO Projects(Name) 
-    VALUES ('Тест');
     
-INSERT INTO Users(UserLogin,UserPassword,Name,Surname,Patronymic) 
-    VALUES ('WetSock','12345','Магомед','Алибеков','Русланович');
-INSERT INTO Users(UserLogin,UserPassword,Name,Patronymic) 
-    VALUES ('Cinereo','Null','Данил','Астахов');
-INSERT INTO Users (UserLogin,UserPassword,Name,Surname) 
-    VALUES ('Morbid','qwepoi123','Юджин','Краббс');
+Exec [Новый пользователь] 'WetSock','12345'
+Exec [Новый пользователь] 'Cinereo','Null'
+Exec [Новый пользователь] Morbid,qwerty   
+Exec [Новый проект] 2,'Этот самый'
+Exec [Новый проект] 1,'Тест';
+
     
 INSERT INTO Project_User(ProjectID,UserID,Administrator) 
     VALUES (1,1,'Да');
