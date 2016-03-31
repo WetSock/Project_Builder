@@ -32,8 +32,8 @@ Create table Users(
 Create table Project_User(
  ProjectID int not null,
  UserID int not null,
- Administrator nchar(3) null,
- Moderator nchar(3) null,
+ Administrator bit null,
+ Moderator bit null,
  CONSTRAINT PK_Project_User
                PRIMARY KEY (ProjectID, UserID),
  CONSTRAINT FK_Project_PU Foreign KEY (ProjectID) references Projects (ProjectID)
@@ -131,7 +131,7 @@ AS
               values (@project_name,GETDATE());
     -- Указание создателя проекта в качестве его участника и администратора
        INSERT into Project_User
-              values (@@IDENTITY,@users_id,'Yes',NULL)
+              values (@@IDENTITY,@users_id,1,NULL)
     commit tran;
 GO
 
@@ -143,8 +143,8 @@ CREATE procedure [Новый участник проекта]
 (
    @ProjectID int,
    @UserID int,
-   @Admin nchar(2),
-   @Moderator nchar(2)
+   @Admin bit = Null,
+   @Moderator bit = Null
 )
 as 
    INSERT into Project_User
@@ -220,29 +220,36 @@ as
       where TaskID=@TaskID
 go
 
-
 -- Добавление нескольких строк для тестов
     
 Exec [Новый пользователь] 'WetSock','12345'
 Exec [Новый пользователь] 'Cinereo','Null'
-Exec [Новый пользователь] Morbid,qwerty   
+Exec [Новый пользователь] 'Morbid','qwerty'
+Exec [Новый пользователь] 'Ragnaros',qwerty  
+Exec [Новый пользователь] 'Dority',qwerty 
+Exec [Новый пользователь] 'Edward',qwerty
+Exec [Новый пользователь] 'Rudeus',qwerty
+Exec [Новый пользователь] 'Rikka',qwerty
+Exec [Новый пользователь] 'Zanoba',qwerty
+Exec [Новый пользователь] 'Naruto',qwerty
+Exec [Новый пользователь] 'Mizuki',qwerty
+Exec [Новый пользователь] 'Пико',qwerty
+Exec [Новый пользователь] 'Mikoto',qwerty
+Exec [Новый пользователь] 'Goriade-san',qwerty
+
+Exec [Новый проект] 1,'Тест'
 Exec [Новый проект] 2,'Этот самый'
-Exec [Новый проект] 1,'Тест';
+Exec [Новый проект] 3,'Автоматом'
+Exec [Новый проект] 5,'Девичник'
+Exec [Новый проект] 10,'Мальчишник'
+Exec [Новый проект] 4,'Захват мира'
 
-    
-INSERT INTO Project_User(ProjectID,UserID,Administrator) 
-    VALUES (1,1,'Да');
-INSERT INTO Project_User (ProjectID,UserID,Moderator) 
-    VALUES (1,2,'Да');
+Exec [Удаление пользователя] 12
 
-INSERT into Tasks (ProjectID,[Предполагаемая дата начала],[Предполагаемая дата окончания])
-      values (1,'1996-10-25','1970-01-01')    
-go
+Exec [Новый участник проекта] 2,3
+Exec [Новый участник проекта] 1,2,1
+Exec [Новый участник проекта] 3,2,NULL,1
 
--- Тест нескольких процедур
-Exec [Новый проект] 3, 'Автоматом'
-Exec [Новый участник проекта] 3,1,NULL,NULL
-Exec [Новый пользователь] Morbid,qwerty
 Exec [Новая задача] 1,'2007-10-01','2010-12-05'
-Exec [Удаление участника проекта] 1,2
-Exec [Удаление участника проекта] 1,1
+Exec [Новая задача] 1,'1996-10-25','1970-01-01'   
+go
