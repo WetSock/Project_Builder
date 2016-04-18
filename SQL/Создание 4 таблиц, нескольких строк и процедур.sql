@@ -1,3 +1,6 @@
+IF OBJECT_ID ('Task_User', 'U') is not null
+    DROP TABLE Task_User;
+GO
 IF OBJECT_ID ('Subtasks', 'U') is not null
     DROP TABLE Subtasks;
 GO
@@ -19,7 +22,7 @@ CREATE TABLE Projects (
  Name nchar(20) not null, 
  CreationDate date null
 );
-
+ 
 Create table Users(
  UserID int IDENTITY Primary key,
  UserLogin nchar(20) not null UNIQUE,
@@ -32,8 +35,8 @@ Create table Users(
 Create table Project_User(
  ProjectID int not null,
  UserID int not null,
- Administrator bit null,
- Moderator bit null,
+ Position bit null, -- 1 means moderator, 2 means administrator
+ 
  CONSTRAINT PK_Project_User
                PRIMARY KEY (ProjectID, UserID),
  CONSTRAINT FK_Project_PU Foreign KEY (ProjectID) references Projects (ProjectID)
@@ -44,7 +47,7 @@ Create table Project_User(
 
 Create table Tasks
 (
-  TaskID int IDENTITY not null,
+  TaskID int IDENTITY Primary key,
   ProjectID int not null,
   Name nchar(20) not null default 'Задача',
   Decription nvarchar(max) null,
@@ -53,7 +56,6 @@ Create table Tasks
   [Предполагаемая дата окончания] date not null,
   [Фактическая дата окончания] date null,
   NextStage int null,
-  constraint PK_Tasks Primary key (TaskID,ProjectID),
   CONSTRAINT FK_Projects_Tasks Foreign KEY (ProjectID) references Projects (ProjectID)
             on delete Cascade
 );
@@ -62,20 +64,26 @@ Create table Subtasks
 (
    MainTask int,
    SubTask int UNIQUE,
-   ProjectID int,
    Constraint PK_Subtasks Primary Key (MainTask,SubTask),
-   Constraint FK_Tasks_Subtasks Foreign Key (MainTask,ProjectID) references Tasks (TaskID,ProjectID),
-   Constraint FK_Tasks_Subtasks1 Foreign Key (SubTask,ProjectID) references Tasks (TaskID,ProjectID)
+   Constraint FK_Tasks_Subtasks Foreign Key (MainTask) references Tasks (TaskID),
+   Constraint FK_Tasks_Subtasks1 Foreign Key (SubTask) references Tasks (TaskID)
 )
 
 GO
 
+Create table Task_User
+(
+  TaskID int references Tasks (TaskID),
+  UserID int,
+  constraint PK_Task_User Primary key (TaskID,UserID),
+)
+
 -- Триггер на удаление проекта без участников
 
-IF OBJECT_ID ('Проект без участников','TR') IS NOT NULL
-DROP TRIGGER [Проект без участников];
+IF OBJECT_ID ('Project without participants','TR') IS NOT NULL
+DROP TRIGGER [Project without participants];
 go
-Create trigger [Проект без участников] 
+Create trigger [Project without participants] 
   on Project_User
   after Delete
 as 
@@ -87,10 +95,10 @@ as
 GO
 
 -- Процедура создания нового пользователя
-IF OBJECT_ID ('Новый пользователь','P') is not NULL
-    drop PROCEDURE [Новый пользователь];
+IF OBJECT_ID ('User registration','P') is not NULL
+    drop PROCEDURE [User registration];
 go
-Create PROCEDURE [Новый пользователь]
+Create PROCEDURE [User registration]
 (
   @login nchar(20),
   @password nchar(20)
@@ -109,10 +117,10 @@ go
 --   @project_id - id проекта (заменить на автоматическую генерацию id),
 --   @project_name - название проекта (может повторяться)
 
-IF OBJECT_ID ( 'Новый проект', 'P' ) IS NOT NULL 
-    DROP PROCEDURE [Новый проект];
+IF OBJECT_ID ( 'New project', 'P' ) IS NOT NULL 
+    DROP PROCEDURE [New project];
 GO
-CREATE PROCEDURE [Новый проект]
+CREATE PROCEDURE [New project]
 (
   @users_id int,
   @project_name nchar(20)
@@ -131,31 +139,30 @@ AS
               values (@project_name,GETDATE());
     -- Указание создателя проекта в качестве его участника и администратора
        INSERT into Project_User
-              values (@@IDENTITY,@users_id,1,NULL)
+              values (@@IDENTITY,@users_id,2)
     commit tran;
 GO
 
 -- Добавление нового участника в проект
-IF OBJECT_ID ( 'Новый участник проекта', 'P' ) IS NOT NULL 
-    DROP PROCEDURE [Новый участник проекта];
+IF OBJECT_ID ( 'New participant', 'P' ) IS NOT NULL 
+    DROP PROCEDURE [New participant];
 GO
-CREATE procedure [Новый участник проекта]
+CREATE procedure [New participant]
 (
    @ProjectID int,
    @UserID int,
-   @Admin bit = Null,
-   @Moderator bit = Null
+   @Position bit = Null
 )
 as 
    INSERT into Project_User
-          values (@ProjectID,@UserID,@Admin,@Moderator);
+          values (@ProjectID,@UserID,@Position);
 go
 
 -- Добавление новой задачи в проект
-IF OBJECT_ID ('Новая задача','P') is not NULL
-    drop PROCEDURE [Новая задача];
+IF OBJECT_ID ('New task','P') is not NULL
+    drop PROCEDURE [New task];
 go
-Create PROCEDURE [Новая задача]
+Create PROCEDURE [New task]
 (
   @ProjectID int,
   @Begin date,
@@ -167,10 +174,10 @@ as
 go    
 
 -- Процедура удаления проекта
-if OBJECT_ID ('Удаление проекта','P') is not null
-     drop PROCEDURE [Удаление проекта];
+if OBJECT_ID ('Project removal','P') is not null
+     drop PROCEDURE [Project removal];
 go
-create PROCEDURE [Удаление проекта]
+create PROCEDURE [Project removal]
 (
    @ProjectID int
 )
@@ -180,10 +187,10 @@ as
 go
 
 -- Процедура удаления пользователя
-if OBJECT_ID ('Удаление пользователя','P') is not null
-     drop PROCEDURE [Удаление пользователя];
+if OBJECT_ID ('User removal','P') is not null
+     drop PROCEDURE [User removal];
 go
-create PROCEDURE [Удаление пользователя]
+create PROCEDURE [User removal]
 (
    @UserID int
 )
@@ -193,10 +200,10 @@ as
 go
 
 -- Процедура удаления участника проекта
-if OBJECT_ID ('Удаление участника проекта','P') is not null
-     drop PROCEDURE [Удаление участника проекта];
+if OBJECT_ID ('Participant removal','P') is not null
+     drop PROCEDURE [Participant removal];
 go
-create PROCEDURE [Удаление участника проекта]
+create PROCEDURE [Participant removal]
 (
    @ProjectID int,
    @UserID int
@@ -208,10 +215,10 @@ as
 go
 
 -- Процедура удаления задачи
-if OBJECT_ID ('Удаление задачи','P') is not null
-     drop PROCEDURE [Удаление задачи];
+if OBJECT_ID ('Task removal','P') is not null
+     drop PROCEDURE [Task removal];
 go
-create PROCEDURE [Удаление задачи]
+create PROCEDURE [Task removal]
 (
    @TaskID int
 )
@@ -222,34 +229,34 @@ go
 
 -- Добавление нескольких строк для тестов
     
-Exec [Новый пользователь] 'WetSock','12345'
-Exec [Новый пользователь] 'Cinereo','Null'
-Exec [Новый пользователь] 'Morbid','qwerty'
-Exec [Новый пользователь] 'Ragnaros',qwerty  
-Exec [Новый пользователь] 'Dority',qwerty 
-Exec [Новый пользователь] 'Edward',qwerty
-Exec [Новый пользователь] 'Rudeus',qwerty
-Exec [Новый пользователь] 'Rikka',qwerty
-Exec [Новый пользователь] 'Zanoba',qwerty
-Exec [Новый пользователь] 'Naruto',qwerty
-Exec [Новый пользователь] 'Mizuki',qwerty
-Exec [Новый пользователь] 'Пико',qwerty
-Exec [Новый пользователь] 'Mikoto',qwerty
-Exec [Новый пользователь] 'Goriade-san',qwerty
+Exec [User registration] 'WetSock','12345'
+Exec [User registration] 'Cinereo','Null'
+Exec [User registration] 'Morbid','qwerty'
+Exec [User registration] 'Ragnaros',qwerty  
+Exec [User registration] 'Dority',qwerty 
+Exec [User registration] 'Edward',qwerty
+Exec [User registration] 'Rudeus',qwerty
+Exec [User registration] 'Rikka',qwerty
+Exec [User registration] 'Zanoba',qwerty
+Exec [User registration] 'Naruto',qwerty
+Exec [User registration] 'Mizuki',qwerty
+Exec [User registration] 'Пико',qwerty
+Exec [User registration] 'Mikoto',qwerty
+Exec [User registration] 'Goriade-san',qwerty
 
-Exec [Новый проект] 1,'Тест'
-Exec [Новый проект] 2,'Этот самый'
-Exec [Новый проект] 3,'Автоматом'
-Exec [Новый проект] 5,'Девичник'
-Exec [Новый проект] 10,'Мальчишник'
-Exec [Новый проект] 4,'Захват мира'
+Exec [New Project] 1,'Тест'
+Exec [New Project] 2,'Этот самый'
+Exec [New Project] 3,'Автоматом'
+Exec [New Project] 5,'Девичник'
+Exec [New Project] 10,'Мальчишник'
+Exec [New Project] 4,'Захват мира'
 
-Exec [Удаление пользователя] 12
+Exec [User removal] 12
 
-Exec [Новый участник проекта] 2,3
-Exec [Новый участник проекта] 1,2,1
-Exec [Новый участник проекта] 3,2,NULL,1
+Exec [New participant] 2,3
+Exec [New participant] 1,2,1
+Exec [New participant] 3,2,NULL
 
-Exec [Новая задача] 1,'2007-10-01','2010-12-05'
-Exec [Новая задача] 1,'1996-10-25','1970-01-01'   
+Exec [New task] 1,'2007-10-01','2010-12-05'
+Exec [New task] 1,'1996-10-25','1970-01-01'   
 go
