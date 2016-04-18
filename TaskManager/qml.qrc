@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>images/menu.png</file>
+        <file>images/menu@2x.png</file>
+        <file>images/menu@3x.png</file>
+        <file>images/menu@4x.png</file>
+        <file>images/actionButton.svg</file>
+        <file>pages/ViewProfilePage.qml</file>
+        <file>images/profileIcon2.svg</file>
+        <file>JS/interfaceLogic.js</file>
+    </qresource>
+</RCC>
